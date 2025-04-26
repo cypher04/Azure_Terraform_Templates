@@ -1,0 +1,25 @@
+# Terraform state files
+*.tfstate
+*.tfstate.backup
+
+# Crash logs
+crash.log
+
+# .terraform directory (local cache, plugins, etc.)
+.terraform/
+
+# IDE/editor folders
+.vscode/
+.idea/
+
+# OS junk files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Zip files or backups
+*.zip
+*.tar.gz
+*.bak
