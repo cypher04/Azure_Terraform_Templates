@@ -2,13 +2,14 @@
 *.tfstate
 *.tfstate.backup
 
-template_for_hub_and_spoke/.terraform/providers/registry.terraform.io/hashicorp/azurerm/3.117.1/darwin_arm64/terraform-provider-azurerm_v3.117.1_x5
+terraform/providers/registry.terraform.io/hashicorp/azurerm/3.117.1/darwin_arm64/terraform-provider-azurerm_v3.117.1_x5
 
 # Crash logs
 crash.log
 
 # .terraform directory (local cache, plugins, etc.)
 .terraform/
+.terraform.lock.hcl
 
 # IDE/editor folders
 .vscode/
