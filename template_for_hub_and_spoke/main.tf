@@ -157,3 +157,4 @@ output "spoke_vnet_ids" {
   description = "IDs of the spoke VNets"
   value       = [for s in azurerm_virtual_network.spoke : s.id]
 }
+
