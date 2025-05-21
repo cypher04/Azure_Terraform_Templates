@@ -200,6 +200,13 @@ resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc" {
   network_security_group_id = azurerm_network_security_group.hub_nsg.id
   }
 
+// attach nsg assocciation to spoke vnets
+  resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc_2" {
+    for_each = azurerm_subnet.spoke_subnet
+  subnet_id = azurerm_subnet.spoke_subnet[each.key].id
+  network_security_group_id = azurerm_network_security_group.hub_nsg.id
+  }
+
 
 
 
