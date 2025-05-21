@@ -84,6 +84,7 @@ resource "azurerm_virtual_network" "hub" {
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   tags                = var.tags
+
 }
 
 resource "azurerm_subnet" "hub_subnet" {
@@ -157,4 +158,53 @@ output "spoke_vnet_ids" {
   description = "IDs of the spoke VNets"
   value       = [for s in azurerm_virtual_network.spoke : s.id]
 }
+
+
+//deploy firewall to hub vnet
+resource "azurerm_network_security_group" "hub_nsg" {
+  name                = "hub-nsg"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+    security_rule {
+    name                       = "ssh"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+    }
+
+    security_rule {
+    name                       = "Mysql"
+    priority                   = 200
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3306"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+    }
+    tags = {
+    environment = "hub"
+    }
+  }
+
+// attach nsg assocciation
+resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc" {
+  subnet_id = azurerm_subnet.hub_subnet.id
+  network_security_group_id = azurerm_network_security_group.hub_nsg.id
+  }
+
+
+
+
+        
+                
+
+
 
