@@ -115,6 +115,8 @@ output "spoke_vnet_ids" {
 }
 
 
+
+
 //deploy firewall to hub vnet
 resource "azurerm_network_security_group" "hub_nsg" {
   name                = "hub-nsg"
@@ -134,9 +136,33 @@ resource "azurerm_network_security_group" "hub_nsg" {
     }
 
     security_rule {
-    name                       = "Mysql"
+    name                       = "ssh"
     priority                   = 200
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+    }
+
+    security_rule {
+    name                       = "Mysql"
+    priority                   = 300
     direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3306"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+    }
+
+    security_rule {
+    name                       = "Mysql"
+    priority                   = 400
+    direction                  = "Outbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
@@ -161,6 +187,83 @@ resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc" {
   subnet_id = azurerm_subnet.spoke_subnet[each.key].id
   network_security_group_id = azurerm_network_security_group.hub_nsg.id
   }
+
+
+  // attach NAT gateway to hub vnet
+  resource "azurerm_nat_gateway" "hub_nat" {
+    name                = "hub-nat"
+    location            = azurerm_resource_group.rg.location
+    resource_group_name = azurerm_resource_group.rg.name
+    sku_name            = "Standard"
+    }
+    resource "azurerm_public_ip" "hub_nat_pip" {
+      name                = "hub-nat-pip"
+      resource_group_name = azurerm_resource_group.rg.name
+      location            = azurerm_resource_group.rg.location
+      allocation_method = "Static"
+      sku = "Standard"
+      }
+      resource "azurerm_subnet_nat_gateway_association" "hub_nat_assoc" {
+        subnet_id = azurerm_subnet.hub_subnet.id
+        nat_gateway_id = azurerm_nat_gateway.hub_nat.id
+        }
+        # resource "azurerm_subnet_nat_gateway_association" "hub_nat_assoc_2" {
+        #   for_each = azurerm_subnet.spoke_subnet
+        #   subnet_id = azurerm_subnet.spoke_subnet[each.key].id
+        #   nat_gateway_id = azurerm_nat_gateway.hub_nat.id
+        #   }
+
+        // attach public ip to NAT gateway
+        resource "azurerm_nat_gateway_public_ip_association" "hub_nat_IP_assoc" {
+          nat_gateway_id = azurerm_nat_gateway.hub_nat.id
+          public_ip_address_id = azurerm_public_ip.hub_nat_pip.id
+          }
+
+    
+// create a linux vm and attach to the hub vnet
+
+resource "azurerm_network_interface" "main" {
+  name                = "vm_nic"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+
+  ip_configuration {
+    name                          = "hub_subnet"
+    subnet_id                     = azurerm_subnet.hub_subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "main" {
+  name                            = "linuxvm"
+  resource_group_name             = azurerm_resource_group.rg.name
+  location                        = azurerm_resource_group.rg.location
+  size                            = "Standard_F2s_v2"
+  admin_username                  = var.username
+  admin_password                  = var.password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.main.id,
+  ]
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadOnly"
+
+    diff_disk_settings {
+      option = "Local"
+    }
+  }
+}
+
+
 
 
 

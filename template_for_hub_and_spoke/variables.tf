@@ -50,5 +50,18 @@ variable "tags" {
   default     = { environment = "demo" }
 }
 
+variable "password" {
+  description = "Password for linuxvm"
+  type = string
+  sensitive = true
+}
+
+
+
+variable "username" {
+  description = "username for linuxvm"
+  type = string
+  sensitive = true
+}
 
 
