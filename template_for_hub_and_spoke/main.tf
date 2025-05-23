@@ -99,20 +99,7 @@ resource "azurerm_virtual_network_peering" "spoke_to_hub" {
 }
 
 // outputs.tf
-output "resource_group_name" {
-  description = "The name of the resource group"
-  value       = azurerm_resource_group.rg.name
-}
 
-output "hub_vnet_id" {
-  description = "ID of the hub VNet"
-  value       = azurerm_virtual_network.hub.id
-}
-
-output "spoke_vnet_ids" {
-  description = "IDs of the spoke VNets"
-  value       = [for s in azurerm_virtual_network.spoke : s.id]
-}
 
 
 
@@ -146,7 +133,7 @@ resource "azurerm_network_security_rule" "deny_ssh" {
   name                        = "DenySSH"
   priority                    = 200
   direction                   = "Outbound"
-  access                      = "Deny"
+  access                      = "Allow"
   protocol                    = "Tcp"
   source_port_range           = "*"
   destination_port_range      = "22"
