@@ -123,57 +123,91 @@ resource "azurerm_network_security_group" "hub_nsg" {
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 
-    security_rule {
-    name                       = "ssh"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-    }
+}
 
-    security_rule {
-    name                       = "ssh"
-    priority                   = 200
-    direction                  = "Outbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-    }
+  # Allow SSH (port 22) from a trusted IP
+resource "azurerm_network_security_rule" "allow_ssh" {
+  name                        = "AllowSSH"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "22"
+  source_address_prefix       = "*"    # your trusted IP
+  destination_address_prefix  = "*"
+  
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.hub_nsg.name
+}
 
-    security_rule {
-    name                       = "Mysql"
-    priority                   = 300
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "3306"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-    }
+# Deny SSH (port 22) from anywhere else
+resource "azurerm_network_security_rule" "deny_ssh" {
+  name                        = "DenySSH"
+  priority                    = 200
+  direction                   = "Outbound"
+  access                      = "Deny"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "22"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.hub_nsg.name
+}
 
-    security_rule {
-    name                       = "Mysql"
-    priority                   = 400
-    direction                  = "Outbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "3306"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-    }
-    tags = {
-    environment = "hub"
-    }
-  }
+    # security_rule {
+    # name                       = "ssh"
+    # priority                   = 100
+    # direction                  = "Inbound"
+    # access                     = "Allow"
+    # protocol                   = "Tcp"
+    # source_port_range          = "*"
+    # destination_port_range     = "22"
+    # source_address_prefix      = "*"
+    # destination_address_prefix = "*"
+    # }
+
+    # # security_rule {
+    # # name                       = "ssh"
+    # # priority                   = 200
+    # # direction                  = "Outbound"
+    # # access                     = "Allow"
+    # # protocol                   = "Tcp"
+    # # source_port_range          = "*"
+    # # destination_port_range     = "22"
+    # # source_address_prefix      = "*"
+    # # destination_address_prefix = "*"
+    # # }
+
+    # security_rule {
+    # name                       = "http"
+    # priority                   = 300
+    # direction                  = "Inbound"
+    # access                     = "Allow"
+    # protocol                   = "Tcp"
+    # source_port_range          = "*"
+    # destination_port_range     = "80"
+    # source_address_prefix      = "*"
+    # destination_address_prefix = "*"
+    # }
+
+    # security_rule {
+    # name                       = "http"
+    # priority                   = 300
+    # direction                  = "Outbound"
+    # access                     = "Deny"
+    # protocol                   = "Tcp"
+    # source_port_range          = "*"
+    # destination_port_range     = "80"
+    # source_address_prefix      = "*"
+    # destination_address_prefix = "*"
+    # }
+    # tags = {
+    # environment = "hub"
+    # }
+  
 
 // attach nsg assocciation
 resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc" {
@@ -195,6 +229,7 @@ resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc" {
     location            = azurerm_resource_group.rg.location
     resource_group_name = azurerm_resource_group.rg.name
     sku_name            = "Standard"
+
     }
     resource "azurerm_public_ip" "hub_nat_pip" {
       name                = "hub-nat-pip"
