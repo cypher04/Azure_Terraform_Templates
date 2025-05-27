@@ -189,9 +189,21 @@ resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc" {
           nat_gateway_id = azurerm_nat_gateway.hub_nat.id
           public_ip_address_id = azurerm_public_ip.hub_nat_pip.id
           }
+          
+
+
+
 
     
 // create a linux vm and attach to the hub vnet
+
+resource "azurerm_public_ip" "vm_pip" {
+  name                = "vm-public-ip"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
 
 resource "azurerm_network_interface" "main" {
   name                = "vm_nic"
@@ -202,6 +214,7 @@ resource "azurerm_network_interface" "main" {
     name                          = "hub_subnet"
     subnet_id                     = azurerm_subnet.hub_subnet.id
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.vm_pip.id
   }
 }
 
@@ -216,6 +229,13 @@ resource "azurerm_linux_virtual_machine" "main" {
   network_interface_ids = [
     azurerm_network_interface.main.id,
   ]
+
+  
+admin_ssh_key {
+    username   = "adminuser"
+    public_key = file("${path.module}/azure_rsa_key.pub")
+  }
+  
 
   source_image_reference {
     publisher = "Canonical"
@@ -234,13 +254,30 @@ resource "azurerm_linux_virtual_machine" "main" {
   }
 }
 
+// deploy azure bastion host
+# resource "azurerm_bastion_host" "bastion" {
+#   name                = "bastion-host"
+#   resource_group_name = azurerm_resource_group.rg.name
+#   location            = azurerm_resource_group.rg.location
+
+#   ip_configuration {
+#     name                 = "bastion-ip"
+#     subnet_id            = azurerm_subnet.hub_subnet.id
+#     public_ip_address_id = azurerm_public_ip.hub_nat_pip.id
+#   }
+# }
 
 
 
 
 
-        
-                
+
+
+
+
+
+
+
 
 
 
