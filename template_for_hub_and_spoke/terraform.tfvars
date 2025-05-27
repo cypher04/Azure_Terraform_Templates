@@ -19,3 +19,7 @@ password = "P@ssw0rd1234!"
 
 username = "adminuser"
 
+
+ssh_public_key = "/User/seyiabiodun/.ssh/id_rsa.pub"
+    
+

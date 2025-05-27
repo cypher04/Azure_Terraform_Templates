@@ -17,3 +17,9 @@ output "hub_nat_pip_id" {
   description = "public Ip Address attached to NAT Gateway"
   value       = azurerm_public_ip.hub_nat_pip
 }
+
+output "vm_public_ip" {
+  description = "Public IP address of the Linux VM"
+  value       = azurerm_public_ip.vm_pip.ip_address
+  
+}
