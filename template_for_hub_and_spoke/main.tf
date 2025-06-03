@@ -254,6 +254,63 @@ admin_ssh_key {
   }
 }
 
+// create linux vm in each spoke subnet
+resource "azurerm_public_ip" "spoke_vm_pip" {
+  for_each            = azurerm_subnet.spoke_subnet
+  name                = "vm-public-ip-${each.key}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
+resource "azurerm_network_interface" "spoke_vm_nic" {
+  for_each            = azurerm_subnet.spoke_subnet
+  name                = "vm-nic-${each.key}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+
+  ip_configuration {
+    name                          = "spoke_subnet"
+    subnet_id                     = azurerm_subnet.spoke_subnet[each.key].id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.spoke_vm_pip[each.key].id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "spoke_vm" {
+  for_each                        = azurerm_subnet.spoke_subnet
+  name                            = "linuxvm-${each.key}"
+  resource_group_name             = azurerm_resource_group.rg.name
+  location                        = azurerm_resource_group.rg.location
+  size                            = "Standard_F2s_v2"
+  admin_username                  = var.username
+  admin_password                  = var.password
+  disable_password_authentication = false
+  network_interface_ids           = [azurerm_network_interface.spoke_vm_nic[each.key].id]
+
+  admin_ssh_key {
+    username   = "adminuser"
+    public_key = file("${path.module}/azure_rsa_key.pub")
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadOnly"
+    diff_disk_settings {
+      option = "Local"
+    }
+  }
+}
+
+
 // deploy azure bastion host
 # resource "azurerm_bastion_host" "bastion" {
 #   name                = "bastion-host"

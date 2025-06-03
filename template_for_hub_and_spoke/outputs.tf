@@ -20,6 +20,13 @@ output "hub_nat_pip_id" {
 
 output "vm_public_ip" {
   description = "Public IP address of the Linux VM"
-  value       = azurerm_public_ip.vm_pip.ip_address
-  
+  value       = azurerm_public_ip.vm_pip.ip_address 
 }
+
+output "spoke_vm_private_ips" {
+  description = "Private IP addresses of the Linux VMs in each spoke"
+  value = {
+    for k, nic in azurerm_network_interface.spoke_vm_nic : k => nic.private_ip_address
+  }
+}
+
