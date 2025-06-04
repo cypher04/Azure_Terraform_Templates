@@ -77,12 +77,10 @@ variable "nat_gateway_public_ip" {
   sensitive = true
 }
 
-variable "firewall_subnet" {
-  description = "Subnet configuration for Azure Firewall"
-  type = object({
-    name          = string
-    address_prefixes = string
-  })
+variable "firewall_subnet_prefix" {
+  description = "Subnet prefix for the Azure Firewall"
+  type        = string
+  sensitive = true
 
 }
 

@@ -42,12 +42,12 @@ resource "azurerm_virtual_network" "hub" {
 
 }
 
-// create a zure firewall subnet in the hub vnet
+// create azure firewall subnet in the hub vnet
 resource "azurerm_subnet" "firewall_subnet" {
   name                 = "AzureFirewallSubnet"
   resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.hub.name
-  address_prefixes     = ["var.firewall_subnet.address_prefixes"]
+  address_prefixes     = ["var.firewall_subnet_prefix"]
 }
 
 //create public ip for firewall
@@ -75,9 +75,73 @@ resource "azurerm_firewall" "hub_firewall" {
 }
 
 
-// create rule to allow ssh access to the firewall
+// create rule on firewall to allow ssh on spoke vnets
+resource "azurerm_firewall_network_rule_collection" "ssh_rule" {
+  azure_firewall_name = azurerm_firewall.hub_firewall.name
+  name                = "AllowSSH"
+  resource_group_name = azurerm_resource_group.rg.name
+  priority            = 100
+  action              = "Allow"
+ rule {
+    name                  = "AllowSSH"
+    protocols              = ["TCP"]
+    source_addresses      = ["*"]  # Adjust as needed
+    destination_addresses = ["*"]  # Adjust as needed
+    destination_ports     = ["22"]
+  }
+ }  
+
+//create firewall application rule collection to allow outbound internet access
+resource "azurerm_firewall_application_rule_collection" "outbound_internet_access" {
+  azure_firewall_name = azurerm_firewall.hub_firewall.name
+  name                = "AllowOutboundInternet"
+  resource_group_name = azurerm_resource_group.rg.name
+  priority            = 200
+  action              = "Allow"
+  rule {
+    name                  = "AllowOutboundInternet"
+    source_addresses      = ["*"]  # Adjust as needed
+    target_fqdns          = ["*"]  # Allow all FQDNs for outbound internet access
+    protocol {
+      type = "Http"
+      port = 80
+    }
+    protocol {
+      type = "Https"
+      port = 443
+  }
+}
+}
+
+//create nat rule to forward port 22 from the firewall to the spoke vnets private IP addresses. this routes traffic from the firewall public IP to the private IP addresses of the VMs in the spoke vnets
+resource "azurerm_firewall_nat_rule_collection" "ssh_nat_rule" {
+  azure_firewall_name = azurerm_firewall.hub_firewall.name
+  name                = "SSHForwarding"
+  resource_group_name = azurerm_resource_group.rg.name
+  priority            = 300
+  action              = "Dnat"
+  rule {
+    name                  = "ForwardSSHToSpoke1"
+    source_addresses      = ["*"]
+    destination_addresses = [azurerm_public_ip.firewall_pip.ip_address]
+    destination_ports     = ["2201"]
+    translated_address    = azurerm_network_interface.spoke_vm_nic["vnet-spoke-1"].private_ip_address
+    translated_port       = "22"
+    protocols             = ["TCP"]
+  }
+  rule {
+    name                  = "ForwardSSHToSpoke2"
+    source_addresses      = ["*"]
+    destination_addresses = [azurerm_public_ip.firewall_pip.ip_address]
+    destination_ports     = ["2202"]
+    translated_address    = azurerm_network_interface.spoke_vm_nic["vnet-spoke-2"].private_ip_address
+    translated_port       = "22"
+    protocols             = ["TCP"]
+  }
+}
 
 
+ 
 
 
 resource "azurerm_subnet" "hub_subnet" {
@@ -208,12 +272,12 @@ resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc" {
   network_security_group_id = azurerm_network_security_group.hub_nsg.id
   }
 
-// attach nsg assocciation to spoke vnets
-  resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc_2" {
-    for_each = azurerm_subnet.spoke_subnet
-  subnet_id = azurerm_subnet.spoke_subnet[each.key].id
-  network_security_group_id = azurerm_network_security_group.hub_nsg.id
-  }
+# // attach nsg assocciation to spoke vnets
+#   resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc_2" {
+#     for_each = azurerm_subnet.spoke_subnet
+#   subnet_id = azurerm_subnet.spoke_subnet[each.key].id
+#   network_security_group_id = azurerm_network_security_group.hub_nsg.id
+#   }
 
 
   // attach NAT gateway to hub vnet

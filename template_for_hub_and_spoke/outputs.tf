@@ -51,5 +51,11 @@ output "firewall_pip" {
   
 }
 
+output "hub_vnet_subnet_id" {
+  description = "ID of the hub VNet subnet"
+  value       = azurerm_subnet.hub_subnet.id
+  
+}
+
 
 
