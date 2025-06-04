@@ -42,6 +42,44 @@ resource "azurerm_virtual_network" "hub" {
 
 }
 
+// create a zure firewall subnet in the hub vnet
+resource "azurerm_subnet" "firewall_subnet" {
+  name                 = "AzureFirewallSubnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.hub.name
+  address_prefixes     = ["var.firewall_subnet.address_prefixes"]
+}
+
+//create public ip for firewall
+resource "azurerm_public_ip" "firewall_pip" {
+  name                = "firewall-pip"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Static"
+  sku                 = "Standard"  
+  
+}
+// azure firewall
+resource "azurerm_firewall" "hub_firewall" {
+  name                = "hub-firewall"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name  
+  sku_name            = "AZFW_VNet"
+  sku_tier              = "Standard"
+
+  ip_configuration {
+    name                 = "configuration"
+    subnet_id            = azurerm_subnet.firewall_subnet.id
+    public_ip_address_id = azurerm_public_ip.firewall_pip.id
+  }
+}
+
+
+// create rule to allow ssh access to the firewall
+
+
+
+
 resource "azurerm_subnet" "hub_subnet" {
   name                 = "subnet-hub"
   resource_group_name  = azurerm_resource_group.rg.name
@@ -100,7 +138,26 @@ resource "azurerm_virtual_network_peering" "spoke_to_hub" {
 
 // outputs.tf
 
+// create a route table in each poke pointing to the firewall private IP address
+resource "azurerm_route_table" "spoke_udr" {
+  for_each            = azurerm_subnet.spoke_subnet
+  name                = "spoke-udr-${each.key}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  route {
+    name                   = "route-to-hub-nat"
+    address_prefix         = "0.0.0.0/0"
+    next_hop_type          = "VirtualAppliance"
+    next_hop_in_ip_address = azurerm_firewall.hub_firewall.ip_configuration[0].private_ip_address
+  }
+}
 
+// associate the route table with the spoke subnets
+resource "azurerm_subnet_route_table_association" "spoke_udr_assoc" {
+  for_each = azurerm_subnet.spoke_subnet
+  subnet_id      = azurerm_subnet.spoke_subnet[each.key].id
+  route_table_id = azurerm_route_table.spoke_udr[each.key].id
+}
 
 
 
@@ -167,6 +224,7 @@ resource "azurerm_subnet_network_security_group_association" "hub_nsg_assoc" {
     sku_name            = "Standard"
 
     }
+
     resource "azurerm_public_ip" "hub_nat_pip" {
       name                = "hub-nat-pip"
       resource_group_name = azurerm_resource_group.rg.name
@@ -311,7 +369,29 @@ resource "azurerm_linux_virtual_machine" "spoke_vm" {
 }
 
 
-// deploy azure bastion host
+
+# Remove the custom UDR and its association for the spokes
+# (Commented out below for reference)
+# resource "azurerm_route_table" "spoke_udr" {
+#   for_each            = azurerm_subnet.spoke_subnet
+#   name                = "spoke-udr-${each.key}"
+#   location            = azurerm_resource_group.rg.location
+#   resource_group_name = azurerm_resource_group.rg.name
+#   route {
+#     name                   = "route-to-hub-nat"
+#     address_prefix         = "0.0.0.0/0"
+#     next_hop_type          = "VirtualNetworkGateway"
+#   }
+# }
+# resource "azurerm_subnet_route_table_association" "spoke_udr_assoc" {
+#   for_each = azurerm_subnet.spoke_subnet
+#   subnet_id      = azurerm_subnet.spoke_subnet[each.key].id
+#   route_table_id = azurerm_route_table.spoke_udr[each.key].id
+# }
+
+# associate the route table with the hub subnet
+
+# deploy azure bastion host
 # resource "azurerm_bastion_host" "bastion" {
 #   name                = "bastion-host"
 #   resource_group_name = azurerm_resource_group.rg.name

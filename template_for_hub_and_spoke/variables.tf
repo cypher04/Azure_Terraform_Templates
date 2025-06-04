@@ -70,3 +70,19 @@ variable "ssh_public_key" {
   sensitive   = true
 }
 
+//variable for nat gateway public IP address
+variable "nat_gateway_public_ip" {
+  description = "Public IP address for the NAT Gateway in the hub"
+  type        = string
+  sensitive = true
+}
+
+variable "firewall_subnet" {
+  description = "Subnet configuration for Azure Firewall"
+  type = object({
+    name          = string
+    address_prefixes = string
+  })
+
+}
+
