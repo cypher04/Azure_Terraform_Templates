@@ -47,7 +47,7 @@ resource "azurerm_subnet" "firewall_subnet" {
   name                 = "AzureFirewallSubnet"
   resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.hub.name
-  address_prefixes     = ["var.firewall_subnet_prefix"]
+  address_prefixes     = [var.firewall_subnet_prefix]
 }
 
 //create public ip for firewall
@@ -90,6 +90,23 @@ resource "azurerm_firewall_network_rule_collection" "ssh_rule" {
     destination_ports     = ["22"]
   }
  }  
+
+// create fireall rule to allow icmp traffic
+resource "azurerm_firewall_network_rule_collection" "icmp_rule" {
+  azure_firewall_name = azurerm_firewall.hub_firewall.name
+  name                = "AllowICMP"
+  resource_group_name = azurerm_resource_group.rg.name      
+  priority            = 150
+  action              = "Allow"
+  rule {
+    name                  = "AllowICMP"
+    protocols             = ["ICMP"]
+    source_addresses      = ["*"]  # Adjust as needed
+    destination_addresses = ["*"]  # Adjust as needed
+    destination_ports     = ["*"]  # ICMP does not use ports
+  }
+}
+
 
 //create firewall application rule collection to allow outbound internet access
 resource "azurerm_firewall_application_rule_collection" "outbound_internet_access" {
@@ -198,6 +215,16 @@ resource "azurerm_virtual_network_peering" "spoke_to_hub" {
   allow_gateway_transit   = false
   use_remote_gateways     = false
   allow_virtual_network_access = true
+}
+
+
+//peering spoke vnets to each other
+resource "azurerm_virtual_network_peering" "spoke_to_spoke" {
+  for_each = { for s in var.spokes : s.name => s }
+  name                      = "peer-${each.key}-to-${var.spokes[0].name}"
+  resource_group_name       = azurerm_resource_group.rg.name
+  virtual_network_name      = azurerm_virtual_network.spoke[each.key].name
+  remote_virtual_network_id = azurerm_virtual_network.spoke[var.spokes[0].name].id
 }
 
 // outputs.tf
@@ -434,51 +461,68 @@ resource "azurerm_linux_virtual_machine" "spoke_vm" {
 
 
 
-# Remove the custom UDR and its association for the spokes
-# (Commented out below for reference)
-# resource "azurerm_route_table" "spoke_udr" {
-#   for_each            = azurerm_subnet.spoke_subnet
-#   name                = "spoke-udr-${each.key}"
-#   location            = azurerm_resource_group.rg.location
-#   resource_group_name = azurerm_resource_group.rg.name
-#   route {
-#     name                   = "route-to-hub-nat"
-#     address_prefix         = "0.0.0.0/0"
-#     next_hop_type          = "VirtualNetworkGateway"
-#   }
-# }
-# resource "azurerm_subnet_route_table_association" "spoke_udr_assoc" {
-#   for_each = azurerm_subnet.spoke_subnet
-#   subnet_id      = azurerm_subnet.spoke_subnet[each.key].id
-#   route_table_id = azurerm_route_table.spoke_udr[each.key].id
-# }
+//create a storage account in the hub vnet
+resource "azurerm_storage_account" "hub_storage" {
+  name                     = "hubstorageacct"
+  resource_group_name      = azurerm_resource_group.rg.name
+  location                 = azurerm_resource_group.rg.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  is_hns_enabled           = true
+  tags                     = var.tags
 
-# associate the route table with the hub subnet
+  network_rules {
+    default_action             = "Deny"
+    bypass                     = ["AzureServices"]
+    virtual_network_subnet_ids = [azurerm_subnet.hub_subnet.id]
+  }
+}
 
-# deploy azure bastion host
-# resource "azurerm_bastion_host" "bastion" {
-#   name                = "bastion-host"
-#   resource_group_name = azurerm_resource_group.rg.name
-#   location            = azurerm_resource_group.rg.location
+// create a storage account in each spoke vnet
+resource "azurerm_storage_account" "spoke_storage" {
+  for_each            = azurerm_subnet.spoke_subnet
+  name                = "spk${substr(replace(each.key, "[^a-z0-9]", ""), 0, 20)}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  account_tier        = "Standard"
+  account_replication_type = "LRS"
+  is_hns_enabled      = true
+  tags                = var.tags
 
-#   ip_configuration {
-#     name                 = "bastion-ip"
-#     subnet_id            = azurerm_subnet.hub_subnet.id
-#     public_ip_address_id = azurerm_public_ip.hub_nat_pip.id
-#   }
-# }
+  network_rules {
+    default_action             = "Deny"
+    bypass                     = ["AzureServices"]
+    virtual_network_subnet_ids = [azurerm_subnet.spoke_subnet[each.key].id]
+  }
+}
 
+// create a storage container in the hub storage account
+resource "azurerm_storage_container" "hub_container" {
+  name                  = "hubcontainer"
+  storage_account_name  = azurerm_storage_account.hub_storage.name
+  container_access_type = "private"
+}   
 
+// create a storage container in each spoke storage account
+resource "azurerm_storage_container" "spoke_container" {
+  for_each            = azurerm_subnet.spoke_subnet   
+  name                = "spokecontainer${substr(replace(each.key, "[^a-z0-9]", ""), 0, 30)}"
+  storage_account_name = azurerm_storage_account.spoke_storage[each.key].name
+  container_access_type = "private"
+}
 
+//attach blob storage to hub vm
+resource "azurerm_virtual_machine_extension" "hub_blob_attach" {
+  name                 = "attach-hub-blob"
+  virtual_machine_id   = azurerm_linux_virtual_machine.main.id
+  publisher            = "Microsoft.Azure.Storage"
+  type                 = "Blobfuse"
+  type_handler_version = "1.0"
 
-
-
-
-
-
-
-
-
-
-
-
+  settings = jsonencode({
+    containerName = azurerm_storage_container.hub_container.name
+    storageAccountName = azurerm_storage_account.hub_storage.name
+    storageAccountKey = azurerm_storage_account.hub_storage.primary_access_key
+    mountPath = "/mnt/hub-blob"
+  })
+}
