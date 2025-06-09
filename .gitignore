@@ -1,6 +1,7 @@
 # Terraform state files
 *.tfstate
 *.tfstate.backup
+*.tfvars
 
 terraform/providers/registry.terraform.io/hashicorp/azurerm/3.117.1/darwin_arm64/terraform-provider-azurerm_v3.117.1_x5
 
@@ -26,3 +27,13 @@ Thumbs.db
 *.zip
 *.tar.gz
 *.bak
+
+
+azure_rsa_key
+azure_rsa_key.pub
+# Terraform plan files
+*.tfplan
+template_for_hub_and_spoke/ssh-keygen -t rsa -b 4096 -C "seyi446@gmail.com"
+template_for_hub_and_spoke/ssh-keygen -t rsa -b 4096 -C "seyi446@gmail.com".pub
+template_for_hub_and_spoke/terraform.tfvars
+
