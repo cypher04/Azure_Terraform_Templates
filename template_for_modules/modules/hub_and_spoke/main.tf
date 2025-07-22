@@ -64,3 +64,26 @@ resource "azurerm_virtual_network_peering" "spoke_to_hub" {
     # use_remote_gateways          = true
 }
 
+// create NSG group for the hub subnet
+resource "azurerm_network_security_group" "hub_nsg" {
+  name                = "${var.hub_subnet_name}-nsg"
+  location            = azurerm_resource_group.hub.location
+  resource_group_name = azurerm_resource_group.hub.name
+} 
+resource "azurerm_subnet_network_security_group_association" "hub_nsg_association" {
+  subnet_id                 = azurerm_subnet.hub.id
+  network_security_group_id = azurerm_network_security_group.hub_nsg.id
+}
+// create NSG group for the spoke subnet
+resource "azurerm_network_security_group" "spoke_nsg" {
+  name                = "${var.spoke_subnet_name}-nsg"
+  location            = azurerm_resource_group.hub.location
+  resource_group_name = azurerm_resource_group.hub.name
+}
+resource "azurerm_subnet_network_security_group_association" "spoke_nsg_association" {
+  subnet_id                 = azurerm_subnet.spoke.id
+  network_security_group_id = azurerm_network_security_group.spoke_nsg.id
+}
+
+
+
